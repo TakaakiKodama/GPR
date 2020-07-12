@@ -1,7 +1,23 @@
 module GPLM
 using Random
 using LinearAlgebra
+using Plots
 
+function VisualizeGPLM(GPR)
+    plot(GPR.x_test,GPR.predictMean,label="Predicted curve")
+#     if x!=0 && y!=[]
+#         plot!(GPR.x_test,y.(GPR.x_test),label="Theorcetical curve", dpi=300)
+#     end
+    plot!(GPR.X_train,GPR.Y_train,seriestype=:scatter, label="toydata")
+    plot!(GPR.x_test,GPR.predictMean+2 .*GPR.predictVariance, label="+2signma")
+    plot!(GPR.x_test,GPR.predictMean-2 .*GPR.predictVariance,label="-2signma")
+end
+
+
+struct ToyData
+    X
+    Y
+end
 function ToyData(f,dim_i,dim_o;min=0,max=1,N::Int64=100,messiness=[1 for i in 1:dim_o])
 	X=[]
 	Y=[]
@@ -17,7 +33,7 @@ function ToyData(f,dim_i,dim_o;min=0,max=1,N::Int64=100,messiness=[1 for i in 1:
 	end
 	X=vcat(X...)
 	Y=vcat(Y...)
-	return(X,Y)
+	return ToyData(X,Y)
 end
 
 # CH1
@@ -112,24 +128,36 @@ function KernelMatrix(X,k;observationn_noise=0)
 	return(K)
 end
 
-function GaussianProcessRegression(X_train,Y_train,k;x_test=[],observationn_noise=0.001)
+struct GaussianProcessRegression
+    X_train
+    Y_train
+    x_test
+    predictMean
+    predictVariance
+    learnedKernelMatrix
+    learnedInvKernelMatrix
+end
+
+function GaussianProcessRegression(X_train,Y_train,k,x_test,observationn_noise)
 	K=KernelMatrix(X_train,k,observationn_noise=observationn_noise)
 	K_=inv(K)
 	yy=K_*Y_train
 	μ=[]
 	σ=[]
-	if size(x_test,1) != 0
-		for i in x_test
-			k_=[k(j,i) for j in X_train]
-			s=k(i,i)
-			mu=(k_'*yy)[1]
-			var=s-(k_'*K_*k_)[1]
-			push!(μ,mu)
-			push!(σ,var)
-		end
-		return(μ,σ,K,K_,yy)
-	end
-	return(K,K_,yy)
+    for i in x_test
+        k_=[k(j,i) for j in X_train]
+        s=k(i,i)
+        mu=(k_'*yy)[1]
+        var=s-(k_'*K_*k_)[1]
+        push!(μ,mu)
+        push!(σ,var)
+    end
+    predictMean=μ
+    predictVariance=σ
+    learnedKernelMatrix=K
+    learnedInvKernelMatrix=K_
+    return GaussianProcessRegression(X_train,Y_train,x_test,predictMean,predictVariance,learnedKernelMatrix,learnedInvKernelMatrix)
+
 end
 
 end
